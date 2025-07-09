@@ -1,108 +1,112 @@
-#define IN1 5
-#define IN2 4
-#define ENA 6
+// === Motor Pins ===
+#define IN1 7     // Left motor forward
+#define IN2 6     // Left motor reverse
+#define IN3 5     // Right motor forward
+#define IN4 4     // Right motor reverse
 
-#define IN3 8
-#define IN4 7
-#define ENB 9
-
-#define ENC_LEFT 2
-#define ENC_RIGHT 3
+// === Encoder Pins ===
+#define LEFT_C1 2    // Interrupt pin
+#define LEFT_C2 4
+#define RIGHT_C1 3   // Interrupt pin
+#define RIGHT_C2 5
 
 volatile long left_count = 0;
 volatile long right_count = 0;
 
-int pwm_left = 0;
-int pwm_right = 0;
+// Encoder ISR handlers
+void leftEncoderISR() {
+  int b = digitalRead(LEFT_C2);
+  if (b == HIGH)
+    left_count++;
+  else
+    left_count--;
+}
+
+void rightEncoderISR() {
+  int b = digitalRead(RIGHT_C2);
+  if (b == HIGH)
+    right_count++;
+  else
+    right_count--;
+}
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
 
-  // Motor pins
+  // Motor pin setup
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
-  pinMode(ENA, OUTPUT);
   pinMode(IN3, OUTPUT);
   pinMode(IN4, OUTPUT);
-  pinMode(ENB, OUTPUT);
 
-  // Encoder pins
-  pinMode(ENC_LEFT, INPUT_PULLUP);
-  pinMode(ENC_RIGHT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(ENC_LEFT), countLeft, RISING);
-  attachInterrupt(digitalPinToInterrupt(ENC_RIGHT), countRight, RISING);
+  // Encoder pin setup
+  pinMode(LEFT_C1, INPUT_PULLUP);
+  pinMode(LEFT_C2, INPUT_PULLUP);
+  pinMode(RIGHT_C1, INPUT_PULLUP);
+  pinMode(RIGHT_C2, INPUT_PULLUP);
 
-  Serial.println("✅ Arduino ready");
+  attachInterrupt(digitalPinToInterrupt(LEFT_C1), leftEncoderISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_C1), rightEncoderISR, CHANGE);
+
+  Serial.println("✅ Ready for joystick input");
 }
 
 void loop() {
-  static unsigned long last_time = 0;
   if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    parseJoystick(input);
-  }
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
 
-  // Calculate encoder counts every 100 ms
-  if (millis() - last_time >= 100) {
-    long l = left_count;
-    long r = right_count;
-    left_count = 0;
-    right_count = 0;
+    if (cmd == "F") {
+      moveForward();
+    } else if (cmd == "B") {
+      moveBackward();
+    } else if (cmd == "L") {
+      turnLeft();
+    } else if (cmd == "R") {
+      turnRight();
+    } else if (cmd == "S") {
+      stopMotors();
+    }
 
-    Serial.print("ENC_L: "); Serial.print(l);
-    Serial.print(" | ENC_R: "); Serial.println(r);
-    last_time = millis();
-  }
-}
-
-void countLeft() {
-  left_count++;
-}
-
-void countRight() {
-  right_count++;
-}
-
-void parseJoystick(String data) {
-  int lxIndex = data.indexOf("LX:");
-  int lyIndex = data.indexOf("LY:");
-
-  if (lxIndex != -1 && lyIndex != -1) {
-    int lx = data.substring(lxIndex + 3, data.indexOf(",", lxIndex)).toInt();
-    int ly = data.substring(lyIndex + 3).toInt();
-
-    driveWithJoystick(lx, ly);
+    // Report encoder counts
+    Serial.print("L: ");
+    Serial.print(left_count);
+    Serial.print(" | R: ");
+    Serial.println(right_count);
   }
 }
 
-void driveWithJoystick(int lx, int ly) {
-  int base_speed = map(abs(ly), 0, 100, 0, 255);
-  int turn = map(lx, -100, 100, -100, 100);
-
-  int left = constrain(ly + turn, -100, 100);
-  int right = constrain(ly - turn, -100, 100);
-
-  setMotor(left, right);
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
 }
 
-void setMotor(int left_percent, int right_percent) {
-  setSingleMotor(IN1, IN2, ENA, left_percent);
-  setSingleMotor(IN3, IN4, ENB, right_percent);
+void moveBackward() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
 }
 
-void setSingleMotor(int in1, int in2, int en, int speed_percent) {
-  int pwm = map(abs(speed_percent), 0, 100, 0, 255);
+void turnLeft() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
 
-  if (speed_percent > 0) {
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-  } else if (speed_percent < 0) {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-  } else {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
-  }
+void turnRight() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
 
-  analogWrite(en, pwm);
+void stopMotors() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
 }
