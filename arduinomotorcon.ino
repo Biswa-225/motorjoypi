@@ -6,9 +6,9 @@
 
 // === Encoder Pins ===
 #define LEFT_C1 2    // Interrupt pin
-#define LEFT_C2 4
+#define LEFT_C2 8
 #define RIGHT_C1 3   // Interrupt pin
-#define RIGHT_C2 5
+#define RIGHT_C2 9
 
 volatile long left_count = 0;
 volatile long right_count = 0;
